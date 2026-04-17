@@ -33,6 +33,15 @@ ET_ASSIGNED_IPV4
 
 该变量值为当前节点通过 EasyTier 获取到的内网 IPv4。
 
+如果 `easytier-cli --output json node` 返回的 `config` 中检测到启用了 socks5 代理，entrypoint 还会导出：
+
+```text
+http_proxy
+https_proxy
+```
+
+值来自 EasyTier 的 `socks5_proxy` 配置；如果监听地址是 `0.0.0.0`，会自动转成 `127.0.0.1` 供本容器内进程使用。
+
 ## SSH 说明
 
 镜像中的 SSH 配置如下：
@@ -112,6 +121,10 @@ Collector 配置文件固定路径：
 - `ET_ASSIGNED_IPV4`
   - 不是输入变量
   - 由 entrypoint 在 EasyTier 联网成功后通过 `easytier-cli node` 查询得到并导出
+- `http_proxy`
+  - 当 EasyTier 配置了 socks5 代理时自动导出
+- `https_proxy`
+  - 当 EasyTier 配置了 socks5 代理时自动导出
 
 ## Docker 运行示例
 
