@@ -1,0 +1,100 @@
+name: build-and-publish-image
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*.*.*'
+  pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: docker-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine publish eligibility
+        id: publish
+        shell: bash
+        run: |
+          should_publish=false
+          valid_ref=true
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            should_publish=false
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            should_publish=false
+          elif [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
+            should_publish=true
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              should_publish=true
+            else
+              valid_ref=false
+            fi
+          fi
+
+          echo "should_publish=${should_publish}" >> "${GITHUB_OUTPUT}"
+          echo "valid_ref=${valid_ref}" >> "${GITHUB_OUTPUT}"
+
+      - name: Stop on invalid tag format
+        if: steps.publish.outputs.valid_ref != 'true'
+        run: |
+          echo "Only semver tags vX.Y.Z are allowed for publishing"
+          exit 1
+
+      - name: Set up QEMU
+        if: steps.publish.outputs.valid_ref == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.publish.outputs.valid_ref == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.publish.outputs.should_publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        if: steps.publish.outputs.valid_ref == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+
+      - name: Build and push image
+        if: steps.publish.outputs.valid_ref == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ steps.publish.outputs.should_publish == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
