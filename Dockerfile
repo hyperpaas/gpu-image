@@ -40,8 +40,8 @@ RUN set -eux; \
     curl -fsSL --retry 3 --output "${easytier_zip}" "https://github.com/EasyTier/EasyTier/releases/download/${EASYTIER_VERSION}/easytier-linux-${easytier_arch}-${EASYTIER_VERSION}.zip"; \
     echo "${easytier_sha}  ${easytier_zip}" | sha256sum -c -; \
     unzip -q "${easytier_zip}" -d /tmp/easytier; \
-    install -m 0755 /tmp/easytier/easytier-core /usr/local/bin/easytier-core; \
-    install -m 0755 /tmp/easytier/easytier-cli /usr/local/bin/easytier-cli; \
+    install -m 0755 "/tmp/easytier/easytier-linux-${easytier_arch}/easytier-core" /usr/local/bin/easytier-core; \
+    install -m 0755 "/tmp/easytier/easytier-linux-${easytier_arch}/easytier-cli" /usr/local/bin/easytier-cli; \
     otel_deb='/tmp/otelcol.deb'; \
     curl -fsSL --retry 3 --output "${otel_deb}" "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTELCOL_VERSION}/otelcol_${OTELCOL_VERSION}_linux_${otel_arch}.deb"; \
     echo "${otel_sha}  ${otel_deb}" | sha256sum -c -; \
