@@ -119,7 +119,11 @@ if [[ -n "${ROOT_AUTHORIZED_KEYS:-}" ]]; then
 fi
 
 if [[ -f /root/.ssh/authorized_keys ]]; then
-  chmod 600 /root/.ssh/authorized_keys
+  if [[ -w /root/.ssh/authorized_keys ]]; then
+    chmod 600 /root/.ssh/authorized_keys
+  else
+    log "authorized_keys is read-only; skipping chmod"
+  fi
 else
   log "WARNING: /root/.ssh/authorized_keys not found; sshd will start but no root key is configured"
 fi

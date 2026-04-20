@@ -59,6 +59,10 @@ https_proxy
 /root/.ssh/authorized_keys
 ```
 
+可以使用只读挂载；entrypoint 会在文件可写时才尝试 `chmod 600`。
+
+建议显式设置文件权限为 `0600`，避免 SSH 因权限过宽而忽略该文件。
+
 ### 方式 2：环境变量注入
 
 设置环境变量：
@@ -172,6 +176,10 @@ docker run -d \
 ```text
 /root/.ssh/authorized_keys
 ```
+
+如果当前只能使用 ConfigMap，也可以先用只读方式挂载到同一路径。
+
+同样建议为挂载文件显式指定 `defaultMode: 0600`。
 
 ### 3. OTel Collector 配置
 
@@ -290,6 +298,7 @@ spec:
         - name: ssh-auth
           secret:
             secretName: rgpu-root-ssh
+            defaultMode: 0600
         - name: otel-config
           configMap:
             name: rgpu-otelcol
