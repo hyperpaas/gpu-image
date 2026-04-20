@@ -23,7 +23,7 @@
 2. 启动 EasyTier
 3. 使用 `easytier-cli` 确认 EasyTier 已联网，并获取当前分配的 IPv4
 4. 启动 `sshd`
-5. 如果 `/etc/otelcol/config.yaml` 存在，则启动 `otelcol`；否则打印 warning 并跳过
+5. 如果 `/etc/otelcol/config.yaml` 存在，则启动 `otelcol-contrib`；否则打印 warning 并跳过
 
 当 EasyTier ready 后，entrypoint 会导出：
 
@@ -84,8 +84,8 @@ Collector 配置文件固定路径：
 ```
 
 约定：
-- 如果该文件存在，容器启动时会拉起 `otelcol`
-- 如果该文件不存在，容器仍然正常启动，只是不会启动 `otelcol`
+- 如果该文件存在，容器启动时会拉起 `otelcol-contrib`
+- 如果该文件不存在，容器仍然正常启动，只是不会启动 `otelcol-contrib`
 
 这意味着在 Kubernetes 中可以直接通过 ConfigMap 挂载这个路径。
 
@@ -384,7 +384,7 @@ tag 规则：
 
 ### 1. EasyTier readiness
 
-当前镜像会在启动 `sshd` 和 `otelcol` 前等待 EasyTier ready。
+当前镜像会在启动 `sshd` 和 `otelcol-contrib` 前等待 EasyTier ready。
 
 如果你的组网模式比较特殊，可以额外设置：
 

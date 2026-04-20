@@ -106,12 +106,12 @@ SSHD_PID=$!
 MANAGED_PIDS+=("${SSHD_PID}")
 
 if [[ -f "${OTELCOL_CONFIG_PATH}" ]]; then
-  log "starting otelcol with config ${OTELCOL_CONFIG_PATH}"
-  otelcol --config "${OTELCOL_CONFIG_PATH}" &
+  log "starting otelcol-contrib with config ${OTELCOL_CONFIG_PATH}"
+  otelcol-contrib --config "${OTELCOL_CONFIG_PATH}" &
   OTEL_PID=$!
   MANAGED_PIDS+=("${OTEL_PID}")
 else
-  log "WARNING: OpenTelemetry Collector config not found at ${OTELCOL_CONFIG_PATH}; skipping otelcol startup"
+  log "WARNING: OpenTelemetry Collector config not found at ${OTELCOL_CONFIG_PATH}; skipping otelcol-contrib startup"
 fi
 
 set +e
