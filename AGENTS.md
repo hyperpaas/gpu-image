@@ -40,7 +40,7 @@
 
 ## GitHub Actions Publishing Policy
 - Publish images to `ghcr.io/<owner>/<repo>`.
-- Build multi-arch images for `linux/amd64` and `linux/arm64`.
+- Build images for `linux/amd64`.
 - Tag rules:
   - push to default branch: publish `latest`, default branch name tag (for example `main`), and `sha-<shortsha>`;
   - push to non-default branches: publish branch name tag and `sha-<shortsha>`;

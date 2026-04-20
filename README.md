@@ -13,7 +13,7 @@
 镜像内包含：
 - `tini`：作为容器 init，负责信号转发和僵尸进程回收
 - `openssh-server`：支持 root 公钥登录
-- `otelcol`：OpenTelemetry Collector
+- `otelcol-contrib`：OpenTelemetry Collector Contrib 发行版（包含 `resourcedetection` 等扩展组件）
 - `easytier-core`
 - `easytier-cli`
 - 基础工具：`curl`、`wget`、`vim`
@@ -356,9 +356,8 @@ spec:
 
 ## GitHub Actions 发布规则
 
-workflow 会构建并发布多架构镜像：
+workflow 会构建并发布镜像：
 - `linux/amd64`
-- `linux/arm64`
 
 发布地址：
 

@@ -59,6 +59,8 @@ jobs:
       - name: Set up QEMU
         if: steps.publish.outputs.valid_ref == 'true'
         uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64
 
       - name: Set up Docker Buildx
         if: steps.publish.outputs.valid_ref == 'true'
@@ -92,7 +94,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: ${{ steps.publish.outputs.should_publish == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
