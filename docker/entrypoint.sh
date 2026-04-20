@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+source /usr/local/lib/easytier-common.sh
+
 log() {
   printf '[entrypoint] %s\n' "$*"
-}
-
-trim() {
-  local value="$1"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  printf '%s' "$value"
 }
 
 require_env() {
@@ -41,75 +36,10 @@ trap on_signal INT TERM HUP QUIT
 OTELCOL_CONFIG_PATH='/etc/otelcol/config.yaml'
 MANAGED_PIDS=()
 
-get_easytier_node_json() {
-  easytier-cli --rpc-portal "${ET_RPC_PORTAL}" --output json node 2>/dev/null || true
-}
-
-easytier_ready() {
-  local peer_output expected_peers peer_count required_peers local_ipv4
-
-  local_ipv4="$(get_easytier_ipv4)"
-  [[ -n "${local_ipv4}" ]] || return 1
-
-  required_peers=0
-  if [[ -n "$(trim "${ET_PEERS:-}")" ]]; then
-    required_peers=1
-  fi
-
-  expected_peers="$(trim "${ET_EXPECT_PEERS:-${required_peers}}")"
-  if [[ "${expected_peers}" =~ ^[0-9]+$ ]] && (( expected_peers > 0 )); then
-    peer_output="$(easytier-cli --rpc-portal "${ET_RPC_PORTAL}" peer 2>/dev/null || true)"
-    peer_count="$(grep -Eoc '([0-9]{1,3}\.){3}[0-9]{1,3}' <<< "${peer_output}" || true)"
-    (( peer_count >= expected_peers )) || return 1
-  fi
-
-  return 0
-}
-
-get_easytier_ipv4() {
-  local node_output ipv4
-
-  node_output="$(get_easytier_node_json)"
-  [[ -n "${node_output}" ]] || return 1
-
-  ipv4="$(jq -r '.ipv4_addr // empty' <<< "${node_output}" 2>/dev/null || true)"
-  ipv4="$(trim "${ipv4}")"
-
-  [[ -n "${ipv4}" ]] || return 1
-  [[ "${ipv4}" == "null" ]] && return 1
-  [[ "${ipv4}" == "0.0.0.0" ]] && return 1
-  [[ "${ipv4}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
-
-  printf '%s\n' "${ipv4}"
-}
-
-get_easytier_socks5_proxy() {
-  local node_output config_text proxy_url proxy_host
-
-  node_output="$(get_easytier_node_json)"
-  [[ -n "${node_output}" ]] || return 1
-
-  config_text="$(jq -r '.config // empty' <<< "${node_output}" 2>/dev/null || true)"
-  [[ -n "${config_text}" ]] || return 1
-
-  proxy_url="$(sed -nE 's/.*socks5_proxy[[:space:]]*=[[:space:]]*"(socks5:\/\/[^\"]+)".*/\1/p' <<< "${config_text}" | head -n 1)"
-  proxy_url="$(trim "${proxy_url}")"
-  [[ -n "${proxy_url}" ]] || return 1
-
-  proxy_host="$(sed -nE 's#^socks5://\[?([^]/:]+|::)\]?:[0-9]+$#\1#p' <<< "${proxy_url}" | head -n 1)"
-  case "${proxy_host}" in
-    0.0.0.0|::|'')
-      proxy_url="$(sed -E 's#^socks5://\[?(0\.0\.0\.0|::)\]?:#socks5://127.0.0.1:#' <<< "${proxy_url}")"
-      ;;
-  esac
-
-  printf '%s\n' "${proxy_url}"
-}
-
 require_env ET_NETWORK_NAME
 require_env ET_NETWORK_SECRET
 
-export ET_RPC_PORTAL="${ET_RPC_PORTAL:-127.0.0.1:15888}"
+export ET_RPC_PORTAL="$(easytier_rpc_portal)"
 
 mkdir -p /root/.ssh /run/sshd /var/log/easytier
 chmod 700 /root/.ssh
@@ -156,10 +86,13 @@ until easytier_ready; do
 done
 
 ET_ASSIGNED_IPV4="$(get_easytier_ipv4)"
+ET_ASSIGNED_CIDR="$(get_easytier_ipv4_cidr)"
 export ET_ASSIGNED_IPV4
+export ET_ASSIGNED_CIDR
 
 log "easytier is ready"
 log "easytier assigned ipv4: ${ET_ASSIGNED_IPV4}"
+log "easytier assigned cidr: ${ET_ASSIGNED_CIDR}"
 
 if EASYTIER_SOCKS5_PROXY="$(get_easytier_socks5_proxy)"; then
   export http_proxy="${EASYTIER_SOCKS5_PROXY}"

@@ -29,9 +29,11 @@
 
 ```text
 ET_ASSIGNED_IPV4
+ET_ASSIGNED_CIDR
 ```
 
-该变量值为当前节点通过 EasyTier 获取到的内网 IPv4。
+- `ET_ASSIGNED_IPV4`：当前节点通过 EasyTier 获取到的纯 IPv4 地址
+- `ET_ASSIGNED_CIDR`：当前节点通过 EasyTier 获取到的原始 CIDR 值，例如 `10.250.250.2/24`
 
 如果 `easytier-cli --output json node` 返回的 `config` 中检测到启用了 socks5 代理，entrypoint 还会导出：
 
@@ -125,6 +127,9 @@ Collector 配置文件固定路径：
 - `ET_ASSIGNED_IPV4`
   - 不是输入变量
   - 由 entrypoint 在 EasyTier 联网成功后通过 `easytier-cli node` 查询得到并导出
+- `ET_ASSIGNED_CIDR`
+  - 不是输入变量
+  - 由 entrypoint 在 EasyTier 联网成功后通过 `easytier-cli node` 查询得到并导出
 - `http_proxy`
   - 当 EasyTier 配置了 socks5 代理时自动导出
 - `https_proxy`
@@ -204,6 +209,26 @@ EasyTier 官方容器示例偏向 host network。
 - 如果你希望更接近官方容器运行方式，可以考虑 `hostNetwork: true`
 - 如果你只暴露必要端口，也可以先按普通 Pod 网络方式部署，再根据联通性调整
 
+### 6. 健康检查建议
+
+建议在 Kubernetes 中使用镜像内置的 `exec` 探针脚本，而不是仅检查端口：
+
+- readiness probe：`/usr/local/bin/readiness-probe.sh`
+  - 检查 EasyTier 本地 RPC 可访问
+  - 检查已经拿到有效的内网 IPv4
+  - 如果配置了 `ET_EXPECT_PEERS`，还会检查已连接 peer 数
+  - 检查 `sshd` 已监听 22 端口
+- liveness probe：`/usr/local/bin/liveness-probe.sh`
+  - 检查 `easytier-core` 进程存在
+  - 检查 `sshd` 进程存在
+  - 检查 EasyTier 本地 RPC 仍可访问
+
+不建议只用 `tcpSocket: 22`：
+- 22 端口只能说明 `sshd` 存活
+- 不能确认 EasyTier 仍然可用
+
+另外建议再配置 `startupProbe`，避免组网阶段过早失败。
+
 ## Kubernetes 示例
 
 下面示例演示：
@@ -274,6 +299,27 @@ spec:
               value: my-secret
             - name: ET_PEERS
               value: tcp://1.2.3.4:11010
+          startupProbe:
+            exec:
+              command:
+                - /usr/local/bin/readiness-probe.sh
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 36
+          readinessProbe:
+            exec:
+              command:
+                - /usr/local/bin/readiness-probe.sh
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/liveness-probe.sh
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           ports:
             - name: ssh
               containerPort: 22

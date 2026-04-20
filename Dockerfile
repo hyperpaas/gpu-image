@@ -12,7 +12,10 @@ ENV ET_RPC_PORTAL=127.0.0.1:15888 \
     ET_WAIT_TIMEOUT=120 \
     ET_POLL_INTERVAL=2
 
+COPY docker/easytier-common.sh /usr/local/lib/easytier-common.sh
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY docker/readiness-probe.sh /usr/local/bin/readiness-probe.sh
+COPY docker/liveness-probe.sh /usr/local/bin/liveness-probe.sh
 COPY docker/sshd_config /etc/ssh/sshd_config
 
 RUN set -eux; \
@@ -47,7 +50,7 @@ RUN set -eux; \
     echo "${otel_sha}  ${otel_deb}" | sha256sum -c -; \
     dpkg -i "${otel_deb}"; \
     apt-get purge -y --auto-remove unzip; \
-    chmod 0755 /usr/local/bin/entrypoint.sh; \
+    chmod 0755 /usr/local/lib/easytier-common.sh /usr/local/bin/entrypoint.sh /usr/local/bin/readiness-probe.sh /usr/local/bin/liveness-probe.sh; \
     rm -rf /tmp/easytier "${easytier_zip}" "${otel_deb}" /var/lib/apt/lists/* /var/cache/apt/archives/*;
 
 EXPOSE 22 11010/tcp 11010/udp
