@@ -10,12 +10,6 @@ ENV ET_RPC_PORTAL=127.0.0.1:15888 \
     ET_WAIT_TIMEOUT=120 \
     ET_POLL_INTERVAL=2
 
-COPY docker/easytier-common.sh /usr/local/lib/easytier-common.sh
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY docker/readiness-probe.sh /usr/local/bin/readiness-probe.sh
-COPY docker/liveness-probe.sh /usr/local/bin/liveness-probe.sh
-COPY docker/sshd_config /etc/ssh/sshd_config
-
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -51,9 +45,14 @@ RUN set -eux; \
     curl -fsSL --retry 3 --output "${otel_deb}" "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTELCOL_VERSION}/otelcol-contrib_${OTELCOL_VERSION}_linux_amd64.deb"; \
     echo "${OTELCOL_CONTRIB_SHA256_AMD64}  ${otel_deb}" | sha256sum -c -; \
     dpkg -i "${otel_deb}"; \
-    chmod 0755 /usr/local/lib/easytier-common.sh /usr/local/bin/entrypoint.sh /usr/local/bin/readiness-probe.sh /usr/local/bin/liveness-probe.sh; \
     apt-get purge -y --auto-remove unzip; \
     rm -rf /tmp/easytier "${easytier_zip}" "${otel_deb}" /var/lib/apt/lists/* /var/cache/apt/archives/*;
+
+COPY --chmod=0755 docker/easytier-common.sh /usr/local/lib/easytier-common.sh
+COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=0755 docker/readiness-probe.sh /usr/local/bin/readiness-probe.sh
+COPY --chmod=0755 docker/liveness-probe.sh /usr/local/bin/liveness-probe.sh
+COPY docker/sshd_config /etc/ssh/sshd_config
 
 EXPOSE 22 11010/tcp 11010/udp
 
