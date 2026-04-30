@@ -48,6 +48,9 @@ RUN set -eux; \
     apt-get purge -y --auto-remove unzip; \
     rm -rf /tmp/easytier "${easytier_zip}" "${otel_deb}" /var/lib/apt/lists/* /var/cache/apt/archives/*;
 
+RUN curl -fsSL --retry 3 --output /usr/local/bin/comfyui-agent https://asset-inc.oss-cn-shanghai.aliyuncs.com/tmp/comfyui-agent; \
+    chmod +x /usr/local/bin/comfyui-agent;
+
 COPY --chmod=0755 docker/easytier-common.sh /usr/local/lib/easytier-common.sh
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=0755 docker/readiness-probe.sh /usr/local/bin/readiness-probe.sh
