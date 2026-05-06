@@ -16,8 +16,11 @@ RUN set -eux; \
         build-essential \
         ca-certificates \
         curl \
+        fontconfig \
         iproute2 \
         jq \
+        libgl1 \
+        libglib2.0-0 \
         net-tools \
         openssh-server \
         procps \
