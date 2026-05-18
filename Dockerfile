@@ -13,7 +13,7 @@ ENV ET_RPC_PORTAL=127.0.0.1:15888 \
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        build-essential \
+        build-essential libgl1 libglib2.0-0 gcc build-essential fontconfig \
         ca-certificates \
         curl \
         fontconfig \
