@@ -17,7 +17,7 @@ require_env() {
 
 shutdown_children() {
   local pid
-  for pid in "${OTEL_PID:-}" "${SSHD_PID:-}" "${EASYTIER_PID:-}"; do
+  for pid in "${OTEL_PID:-}" "${DCGM_EXPORTER_PID:-}" "${SSHD_PID:-}" "${EASYTIER_PID:-}"; do
     if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
       kill "${pid}" 2>/dev/null || true
     fi
@@ -99,6 +99,48 @@ if EASYTIER_SOCKS5_PROXY="$(get_easytier_socks5_proxy)"; then
   export https_proxy="${EASYTIER_SOCKS5_PROXY}"
   log "easytier socks5 proxy detected: ${EASYTIER_SOCKS5_PROXY}"
 fi
+
+DCGM_EXPORTER_LISTEN="${DCGM_EXPORTER_LISTEN:-:9400}"
+DCGM_EXPORTER_COLLECTORS="${DCGM_EXPORTER_COLLECTORS:-/etc/dcgm-exporter/default-counters.csv}"
+DCGM_EXPORTER_WAIT_TIMEOUT="${DCGM_EXPORTER_WAIT_TIMEOUT:-30}"
+DCGM_EXPORTER_POLL_INTERVAL="${DCGM_EXPORTER_POLL_INTERVAL:-1}"
+
+if [[ ! -x /usr/local/bin/dcgm-exporter ]]; then
+  log "ERROR: dcgm-exporter binary not found at /usr/local/bin/dcgm-exporter"
+  exit 1
+fi
+
+if [[ ! -f "${DCGM_EXPORTER_COLLECTORS}" ]]; then
+  log "ERROR: dcgm-exporter collectors file not found at ${DCGM_EXPORTER_COLLECTORS}"
+  exit 1
+fi
+
+log "starting dcgm-exporter on ${DCGM_EXPORTER_LISTEN} with collectors ${DCGM_EXPORTER_COLLECTORS}"
+/usr/local/bin/dcgm-exporter -a "${DCGM_EXPORTER_LISTEN}" -f "${DCGM_EXPORTER_COLLECTORS}" &
+DCGM_EXPORTER_PID=$!
+MANAGED_PIDS+=("${DCGM_EXPORTER_PID}")
+
+dcgm_started_at=$SECONDS
+until dcgm_exporter_is_listening; do
+  if ! kill -0 "${DCGM_EXPORTER_PID}" 2>/dev/null; then
+    wait "${DCGM_EXPORTER_PID}" || true
+    log "ERROR: dcgm-exporter exited before it started listening"
+    shutdown_children
+    wait || true
+    exit 1
+  fi
+
+  if (( SECONDS - dcgm_started_at >= DCGM_EXPORTER_WAIT_TIMEOUT )); then
+    log "ERROR: dcgm-exporter did not start listening within ${DCGM_EXPORTER_WAIT_TIMEOUT}s"
+    shutdown_children
+    wait || true
+    exit 1
+  fi
+
+  sleep "${DCGM_EXPORTER_POLL_INTERVAL}"
+done
+
+log "dcgm-exporter is listening on ${DCGM_EXPORTER_LISTEN}"
 
 log "starting sshd"
 /usr/sbin/sshd -D -e &

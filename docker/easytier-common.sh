@@ -133,3 +133,24 @@ sshd_is_listening() {
 
   return 1
 }
+
+dcgm_exporter_port() {
+  printf '%s\n' "${DCGM_EXPORTER_PORT:-9400}"
+}
+
+dcgm_exporter_is_listening() {
+  local port state recv_q send_q local_address peer_address
+
+  port="$(dcgm_exporter_port)"
+  [[ "${port}" =~ ^[0-9]+$ ]] || return 1
+
+  while read -r state recv_q send_q local_address peer_address; do
+    case "${local_address}" in
+      *:"${port}"|*\]:"${port}")
+        return 0
+        ;;
+    esac
+  done < <(ss -ltnH 2>/dev/null || true)
+
+  return 1
+}
