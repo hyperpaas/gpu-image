@@ -6,7 +6,7 @@
 - 基于 `debian:trixie-slim`
 - 在 GitHub Actions 上直接构建
 - 自动发布到 `ghcr.io/<owner>/<repo>`
-- 提供 EasyTier + OpenSSH + OpenTelemetry Collector 的运行环境
+- 提供 EasyTier + OpenSSH + OpenTelemetry Collector + dcgm-exporter 的运行环境
 
 ## 镜像功能
 
@@ -14,6 +14,7 @@
 - `tini`：作为容器 init，负责信号转发和僵尸进程回收
 - `openssh-server`：支持 root 公钥登录
 - `otelcol-contrib`：OpenTelemetry Collector Contrib 发行版（包含 `resourcedetection` 等扩展组件）
+- `dcgm-exporter`：导出 NVIDIA GPU / DCGM 指标，默认监听 `:9400`
 - `easytier-core`
 - `easytier-cli`
 - 基础工具：`curl`、`wget`、`vim`
@@ -22,8 +23,10 @@
 1. 检查 `ET_NETWORK_NAME` 和 `ET_NETWORK_SECRET`
 2. 启动 EasyTier
 3. 使用 `easytier-cli` 确认 EasyTier 已联网，并获取当前分配的 IPv4
-4. 启动 `sshd`
-5. 如果 `/etc/otelcol/config.yaml` 存在，则启动 `otelcol-contrib`；否则打印 warning 并跳过
+4. 启动 `dcgm-exporter`
+5. 确认 `dcgm-exporter` 已开始监听指标端口
+6. 启动 `sshd`
+7. 如果 `/etc/otelcol/config.yaml` 存在，则启动 `otelcol-contrib`；否则打印 warning 并跳过
 
 当 EasyTier ready 后，entrypoint 会导出：
 
@@ -89,6 +92,41 @@ Collector 配置文件固定路径：
 
 这意味着在 Kubernetes 中可以直接通过 ConfigMap 挂载这个路径。
 
+## dcgm-exporter
+
+镜像内已包含 `dcgm-exporter`，默认配置如下：
+
+- 二进制：`/usr/local/bin/dcgm-exporter`
+- 默认监听：`:9400`
+- 默认 collectors 文件：`/etc/dcgm-exporter/default-counters.csv`
+- 兼容路径软链接：`/etc/default-counters.csv`
+
+容器启动时会自动拉起 `dcgm-exporter`，并在继续启动 `sshd` / `otelcol-contrib` 前确认其已开始监听。
+
+默认会从 NVIDIA 官方镜像复制最小运行时文件：
+
+- `dcgm-exporter` 主程序
+- `libdcgm.so.4.5.3`
+- `libdcgmmodule*.so.4.5.3`
+- `libnvperf_dcgm_host.so`
+- `default-counters.csv`
+
+可用环境变量：
+
+- `DCGM_EXPORTER_LISTEN`
+  - 默认 `:9400`
+- `DCGM_EXPORTER_PORT`
+  - 默认 `9400`
+  - 供镜像内 readiness / liveness 检查使用
+- `DCGM_EXPORTER_COLLECTORS`
+  - 默认 `/etc/dcgm-exporter/default-counters.csv`
+- `DCGM_EXPORTER_WAIT_TIMEOUT`
+  - 默认 `30`
+- `DCGM_EXPORTER_POLL_INTERVAL`
+  - 默认 `1`
+
+如果你要让 OpenTelemetry Collector 抓取 GPU 指标，可在 Collector 配置中直接抓取本地 `dcgm-exporter` 的 `:9400/metrics`。
+
 ## EasyTier 环境变量
 
 ### 必填
@@ -146,6 +184,7 @@ docker run -d \
   --cap-add NET_RAW \
   --device /dev/net/tun:/dev/net/tun \
   -p 2222:22 \
+  -p 9400:9400 \
   -p 11010:11010/tcp \
   -p 11010:11010/udp \
   -e ET_NETWORK_NAME=my-network \
@@ -217,10 +256,13 @@ EasyTier 官方容器示例偏向 host network。
   - 检查 EasyTier 本地 RPC 可访问
   - 检查已经拿到有效的内网 IPv4
   - 如果配置了 `ET_EXPECT_PEERS`，还会检查已连接 peer 数
+  - 检查 `dcgm-exporter` 已监听指标端口
   - 检查 `sshd` 已监听 22 端口
 - liveness probe：`/usr/local/bin/liveness-probe.sh`
   - 检查 `easytier-core` 进程存在
+  - 检查 `dcgm-exporter` 进程存在
   - 检查 `sshd` 进程存在
+  - 检查 `dcgm-exporter` 端口仍在监听
   - 检查 EasyTier 本地 RPC 仍可访问
 
 不建议只用 `tcpSocket: 22`：
@@ -323,6 +365,8 @@ spec:
           ports:
             - name: ssh
               containerPort: 22
+            - name: dcgm-metrics
+              containerPort: 9400
             - name: easytier-tcp
               containerPort: 11010
               protocol: TCP
@@ -384,7 +428,7 @@ tag 规则：
 
 ### 1. EasyTier readiness
 
-当前镜像会在启动 `sshd` 和 `otelcol-contrib` 前等待 EasyTier ready。
+当前镜像会在启动 `dcgm-exporter`、`sshd` 和 `otelcol-contrib` 前等待 EasyTier ready。
 
 如果你的组网模式比较特殊，可以额外设置：
 
@@ -415,3 +459,13 @@ tini -g
 ```
 
 容器仍可正常运行。
+
+### 4. dcgm-exporter 默认启动
+
+容器默认会启动 `dcgm-exporter`，并监听：
+
+```text
+:9400
+```
+
+如果你在 Kubernetes 中通过 OpenTelemetry Collector 抓取 GPU 指标，直接抓取容器内的 `9400` 端口即可。
